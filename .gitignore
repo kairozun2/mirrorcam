@@ -1,0 +1,18 @@
+# Зависимости
+node_modules/
+
+# Сборка Rust / Tauri
+src-tauri/target/
+
+# Логи и временные файлы
+*.log
+npm-debug.log*
+
+# Системное
+.DS_Store
+Thumbs.db
+
+# Среды разработки
+.idea/
+*.suo
+*.user

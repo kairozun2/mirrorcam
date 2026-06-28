@@ -1,0 +1,15 @@
+{
+  "name": "mirrorcam",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MirrorCam — студия виртуальной камеры для чат-рулеток",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}

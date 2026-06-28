@@ -1,0 +1,67 @@
+name: Сборка и релиз MirrorCam
+
+# Запускается при пуше тега вида v1.0.0, а также вручную из вкладки Actions.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Тег релиза (например v0.1.0)"
+        required: true
+        default: "v0.1.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Установить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Установить Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Кэш Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Установить зависимости npm
+        run: npm install
+
+      - name: Определить тег релиза
+        id: tagname
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "tag=${{ github.event.inputs.tag }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            $t = "${{ github.ref }}".Replace("refs/tags/", "")
+            "tag=$t" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Сборка и публикация релиза
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ steps.tagname.outputs.tag }}
+          releaseName: "MirrorCam ${{ steps.tagname.outputs.tag }}"
+          releaseBody: |
+            Установщик MirrorCam для Windows.
+
+            Скачайте файл `MirrorCam_*_x64-setup.exe` ниже и запустите — приложение
+            установится как обычная программа.
+          releaseDraft: false
+          prerelease: false
