@@ -1,6 +1,7 @@
 // MirrorCam — логика студии камеры.
 // Сцена рисуется на canvas во внутреннем разрешении (scene), а интерактивные
 // рамки слоёв — это DOM-элементы, спозиционированные поверх canvas.
+// Видео и звук — это РАЗНЫЕ потоки: камера всегда без звука, микрофон отдельно.
 
 const $ = (id) => document.getElementById(id);
 
@@ -11,6 +12,15 @@ const els = {
   startBtn: $('startBtn'),
   stopBtn: $('stopBtn'),
   emptyStartBtn: $('emptyStartBtn'),
+  camError: $('camError'),
+  micEnable: $('micEnable'),
+  micSelect: $('micSelect'),
+  micMeter: $('micMeter'),
+  micMeterFill: $('micMeterFill'),
+  micMonitor: $('micMonitor'),
+  outputSelect: $('outputSelect'),
+  outputHint: $('outputHint'),
+  monitorAudio: $('monitorAudio'),
   mirrorOut: $('mirrorOut'),
   mirrorSelf: $('mirrorSelf'),
   addImageBtn: $('addImageBtn'),
@@ -33,13 +43,18 @@ const ctx = els.canvas.getContext('2d', { alpha: false });
 
 // ---------- Состояние ----------
 const state = {
-  stream: null,
+  videoStream: null,
+  audioStream: null,
   video: document.createElement('video'),
   running: false,
   layers: [],        // { id, type:'image'|'emoji', img|text, x, y, w, h }
   selectedId: null,
   sceneW: 1280,
   sceneH: 720,
+  // Аудио-анализ для индикатора уровня
+  audioCtx: null,
+  analyser: null,
+  meterRaf: null,
 };
 state.video.autoplay = true;
 state.video.playsInline = true;
@@ -48,36 +63,84 @@ state.video.muted = true;
 let nextId = 1;
 
 // ============================================================
-//  КАМЕРА
+//  УСТРОЙСТВА
 // ============================================================
-async function listCameras() {
+// Заполняет селект устройств заданного типа, сохраняя выбор.
+function fillSelect(select, devices, fallbackName) {
+  const prev = select.value;
+  select.innerHTML = '';
+  if (devices.length === 0) {
+    const opt = document.createElement('option');
+    opt.textContent = 'Не найдено';
+    opt.value = '';
+    select.appendChild(opt);
+    return;
+  }
+  devices.forEach((d, i) => {
+    const opt = document.createElement('option');
+    opt.value = d.deviceId;
+    opt.textContent = d.label || `${fallbackName} ${i + 1}`;
+    select.appendChild(opt);
+  });
+  if (prev && devices.some((d) => d.deviceId === prev)) select.value = prev;
+}
+
+async function refreshDevices() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const cams = devices.filter((d) => d.kind === 'videoinput');
-    const prev = els.cameraSelect.value;
-    els.cameraSelect.innerHTML = '';
-    if (cams.length === 0) {
-      const opt = document.createElement('option');
-      opt.textContent = 'Камеры не найдены';
-      opt.value = '';
-      els.cameraSelect.appendChild(opt);
-      return;
+    fillSelect(els.cameraSelect, devices.filter((d) => d.kind === 'videoinput'), 'Камера');
+    fillSelect(els.micSelect, devices.filter((d) => d.kind === 'audioinput'), 'Микрофон');
+
+    const outs = devices.filter((d) => d.kind === 'audiooutput');
+    if (typeof els.monitorAudio.setSinkId === 'function') {
+      fillSelect(els.outputSelect, outs, 'Аудиовыход');
+      els.outputSelect.disabled = outs.length === 0;
+      els.outputHint.textContent = outs.length
+        ? 'Куда выводить прослушку микрофона.'
+        : 'Устройства вывода не обнаружены.';
+    } else {
+      els.outputSelect.innerHTML = '<option>Системное устройство</option>';
+      els.outputSelect.disabled = true;
+      els.outputHint.textContent = 'Выбор вывода недоступен — используется системный по умолчанию.';
     }
-    cams.forEach((cam, i) => {
-      const opt = document.createElement('option');
-      opt.value = cam.deviceId;
-      opt.textContent = cam.label || `Камера ${i + 1}`;
-      els.cameraSelect.appendChild(opt);
-    });
-    if (prev) els.cameraSelect.value = prev;
   } catch (e) {
-    console.error('Не удалось получить список камер:', e);
+    console.error('Не удалось получить список устройств:', e);
   }
 }
 
+// Преобразует ошибку getUserMedia в понятный текст.
+function describeMediaError(e, kind) {
+  const name = e && e.name ? e.name : '';
+  const what = kind === 'audio' ? 'микрофону' : 'камере';
+  switch (name) {
+    case 'NotAllowedError':
+    case 'SecurityError':
+      return `Доступ к ${what} запрещён. Открой Параметры Windows → Конфиденциальность → ${kind === 'audio' ? 'Микрофон' : 'Камера'} и включи доступ для классических приложений.`;
+    case 'NotFoundError':
+    case 'OverconstrainedError':
+      return `Устройство (${what}) не найдено. Проверь подключение и выбор устройства в списке.`;
+    case 'NotReadableError':
+    case 'AbortError':
+      return `Не удалось открыть ${what === 'камере' ? 'камеру' : 'микрофон'} — возможно, оно занято другой программой (Zoom, Skype, браузер). Закрой её и попробуй снова.`;
+    default:
+      return `Ошибка доступа к ${what}: ${e && e.message ? e.message : e}`;
+  }
+}
+
+function showCamError(msg) {
+  if (!msg) { els.camError.hidden = true; els.camError.textContent = ''; return; }
+  els.camError.hidden = false;
+  els.camError.textContent = msg;
+}
+
+// ============================================================
+//  КАМЕРА (видео-поток, всегда без звука)
+// ============================================================
 async function startCamera() {
   if (state.running) return;
+  showCamError('');
   setStatus('connecting');
+
   const [w, h] = els.resSelect.value.split('x').map(Number);
   state.sceneW = w;
   state.sceneH = h;
@@ -96,7 +159,7 @@ async function startCamera() {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    state.stream = stream;
+    state.videoStream = stream;
     state.video.srcObject = stream;
     els.selfVideo.srcObject = stream;
     await state.video.play().catch(() => {});
@@ -108,20 +171,19 @@ async function startCamera() {
     els.selfview.classList.add('show');
     setStatus('on');
 
-    // Обновляем список камер уже с метками (label доступен после доступа)
-    listCameras();
+    await refreshDevices(); // теперь с настоящими названиями
     startRenderLoop();
   } catch (e) {
     console.error('Ошибка доступа к камере:', e);
     setStatus('off');
-    alert('Не удалось получить доступ к камере.\n\n' + (e && e.message ? e.message : e));
+    showCamError(describeMediaError(e, 'video'));
   }
 }
 
 function stopCamera() {
-  if (state.stream) {
-    state.stream.getTracks().forEach((t) => t.stop());
-    state.stream = null;
+  if (state.videoStream) {
+    state.videoStream.getTracks().forEach((t) => t.stop());
+    state.videoStream = null;
   }
   state.video.srcObject = null;
   els.selfVideo.srcObject = null;
@@ -131,7 +193,6 @@ function stopCamera() {
   els.emptyState.classList.remove('hidden');
   els.selfview.classList.remove('show');
   setStatus('off');
-  // Заливаем чёрным
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, els.canvas.width, els.canvas.height);
 }
@@ -150,6 +211,87 @@ function setStatus(s) {
 }
 
 // ============================================================
+//  МИКРОФОН (отдельный поток + индикатор уровня + прослушка)
+// ============================================================
+async function startMic() {
+  await stopMic(); // на случай переключения устройства
+  const deviceId = els.micSelect.value;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: false,
+      audio: {
+        deviceId: deviceId ? { exact: deviceId } : undefined,
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
+    });
+    state.audioStream = stream;
+
+    // Индикатор уровня
+    state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = state.audioCtx.createMediaStreamSource(stream);
+    state.analyser = state.audioCtx.createAnalyser();
+    state.analyser.fftSize = 512;
+    src.connect(state.analyser);
+    runMeter();
+
+    applyMonitor(); // прослушка, если включена
+    await refreshDevices();
+  } catch (e) {
+    console.error('Ошибка доступа к микрофону:', e);
+    els.micEnable.checked = false;
+    showCamError(describeMediaError(e, 'audio'));
+  }
+}
+
+async function stopMic() {
+  if (state.meterRaf) { cancelAnimationFrame(state.meterRaf); state.meterRaf = null; }
+  els.micMeterFill.style.width = '0%';
+  els.monitorAudio.srcObject = null;
+  if (state.audioCtx) { try { await state.audioCtx.close(); } catch {} state.audioCtx = null; }
+  state.analyser = null;
+  if (state.audioStream) {
+    state.audioStream.getTracks().forEach((t) => t.stop());
+    state.audioStream = null;
+  }
+}
+
+function runMeter() {
+  const data = new Uint8Array(state.analyser.frequencyBinCount);
+  const tick = () => {
+    if (!state.analyser) return;
+    state.meterRaf = requestAnimationFrame(tick);
+    state.analyser.getByteTimeDomainData(data);
+    let peak = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = Math.abs(data[i] - 128) / 128;
+      if (v > peak) peak = v;
+    }
+    const pct = Math.min(100, Math.round(peak * 140));
+    els.micMeterFill.style.width = pct + '%';
+    els.micMeterFill.classList.toggle('hot', pct > 85);
+  };
+  tick();
+}
+
+function applyMonitor() {
+  if (!state.audioStream) return;
+  if (els.micMonitor.checked) {
+    els.monitorAudio.srcObject = state.audioStream;
+    els.monitorAudio.play().catch(() => {});
+  } else {
+    els.monitorAudio.srcObject = null;
+  }
+}
+
+async function applyOutput() {
+  if (typeof els.monitorAudio.setSinkId !== 'function') return;
+  const id = els.outputSelect.value;
+  if (!id) return;
+  try { await els.monitorAudio.setSinkId(id); } catch (e) { console.warn('setSinkId:', e); }
+}
+
+// ============================================================
 //  РЕНДЕР СЦЕНЫ
 // ============================================================
 let rafId = null;
@@ -161,7 +303,6 @@ function startRenderLoop() {
   const loop = () => {
     rafId = requestAnimationFrame(loop);
     drawScene();
-    // FPS
     frames++;
     const now = performance.now();
     if (now - fpsLast >= 1000) {
@@ -200,10 +341,7 @@ function drawScene() {
     ctx.restore();
   }
 
-  // Слои поверх камеры (зеркало вывода на них не влияет — они должны читаться)
-  for (const layer of state.layers) {
-    drawLayer(layer);
-  }
+  for (const layer of state.layers) drawLayer(layer);
 }
 
 function drawLayer(layer) {
@@ -230,14 +368,10 @@ function addImageLayer(src, name) {
     const w = Math.min(img.width, maxW);
     const h = w * ratio;
     const layer = {
-      id: nextId++,
-      type: 'image',
-      img,
+      id: nextId++, type: 'image', img,
       name: name || `Картинка ${state.layers.length + 1}`,
-      x: (state.sceneW - w) / 2,
-      y: (state.sceneH - h) / 2,
-      w, h,
-      src,
+      x: (state.sceneW - w) / 2, y: (state.sceneH - h) / 2,
+      w, h, src,
     };
     state.layers.push(layer);
     selectLayer(layer.id);
@@ -249,12 +383,9 @@ function addImageLayer(src, name) {
 function addEmojiLayer(emoji) {
   const size = Math.round(state.sceneH * 0.22);
   const layer = {
-    id: nextId++,
-    type: 'emoji',
-    text: emoji,
+    id: nextId++, type: 'emoji', text: emoji,
     name: `Гифт ${emoji}`,
-    x: (state.sceneW - size) / 2,
-    y: (state.sceneH - size) / 2,
+    x: (state.sceneW - size) / 2, y: (state.sceneH - size) / 2,
     w: size, h: size,
   };
   state.layers.push(layer);
@@ -282,7 +413,6 @@ function getSelected() {
 function renderLayerList() {
   els.layerList.innerHTML = '';
   els.layerHint.style.display = state.layers.length ? 'none' : 'block';
-  // показываем сверху последние добавленные
   [...state.layers].reverse().forEach((layer) => {
     const li = document.createElement('li');
     li.className = 'layer-item' + (layer.id === state.selectedId ? ' active' : '');
@@ -318,16 +448,11 @@ function renderLayerList() {
 // ============================================================
 //  ИНТЕРАКТИВНЫЕ РАМКИ (перемещение / масштаб)
 // ============================================================
-// Преобразование координат сцены -> экранные (относительно canvasHost)
 function sceneToScreen() {
   const cRect = els.canvas.getBoundingClientRect();
   const hRect = els.canvasHost.getBoundingClientRect();
-  const scale = cRect.width / state.sceneW; // равномерный масштаб (aspect сохранён)
-  return {
-    ox: cRect.left - hRect.left,
-    oy: cRect.top - hRect.top,
-    scale,
-  };
+  const scale = cRect.width / state.sceneW;
+  return { ox: cRect.left - hRect.left, oy: cRect.top - hRect.top, scale };
 }
 
 function renderHandles() {
@@ -349,10 +474,10 @@ function renderHandles() {
   box.appendChild(move);
 
   for (const pos of ['nw', 'ne', 'sw', 'se']) {
-    const h = document.createElement('div');
-    h.className = 'handle ' + pos;
-    h.addEventListener('pointerdown', (e) => startDrag(e, layer, pos));
-    box.appendChild(h);
+    const hd = document.createElement('div');
+    hd.className = 'handle ' + pos;
+    hd.addEventListener('pointerdown', (e) => startDrag(e, layer, pos));
+    box.appendChild(hd);
   }
   els.overlayLayer.appendChild(box);
 }
@@ -383,7 +508,6 @@ function onDragMove(e) {
     l.x = drag.ox + dx;
     l.y = drag.oy + dy;
   } else {
-    // Масштабирование с сохранением пропорций по горизонтальному смещению
     let nw = drag.ow, nx = drag.ox, ny = drag.oy;
     if (drag.mode === 'se') { nw = drag.ow + dx; }
     else if (drag.mode === 'ne') { nw = drag.ow + dx; ny = drag.oy - (nw - drag.ow) * drag.ratio; }
@@ -405,7 +529,6 @@ function onDragEnd() {
   window.removeEventListener('pointerup', onDragEnd);
 }
 
-// Клик по сцене — выбрать слой под курсором (верхний)
 els.canvasHost.addEventListener('pointerdown', (e) => {
   if (e.target.closest('.handle-box') || e.target.closest('.empty-state')) return;
   const cRect = els.canvas.getBoundingClientRect();
@@ -421,7 +544,6 @@ els.canvasHost.addEventListener('pointerdown', (e) => {
   selectLayer(null);
 });
 
-// При изменении размера окна — перепозиционировать рамки
 window.addEventListener('resize', () => renderHandles());
 
 // ============================================================
@@ -465,6 +587,14 @@ els.emptyStartBtn.addEventListener('click', startCamera);
 els.stopBtn.addEventListener('click', stopCamera);
 els.resSelect.addEventListener('change', () => { if (state.running) { stopCamera(); startCamera(); } });
 els.cameraSelect.addEventListener('change', () => { if (state.running) { stopCamera(); startCamera(); } });
+
+els.micEnable.addEventListener('change', () => {
+  if (els.micEnable.checked) startMic(); else stopMic();
+});
+els.micSelect.addEventListener('change', () => { if (els.micEnable.checked) startMic(); });
+els.micMonitor.addEventListener('change', applyMonitor);
+els.outputSelect.addEventListener('change', applyOutput);
+
 els.mirrorSelf.addEventListener('change', () => {
   els.selfVideo.style.transform = els.mirrorSelf.checked ? 'scaleX(-1)' : 'none';
 });
@@ -481,14 +611,12 @@ els.fileInput.addEventListener('change', (e) => {
 });
 els.addGiftBtn.addEventListener('click', toggleGiftPicker);
 
-// Удаление выбранного слоя по Delete
 window.addEventListener('keydown', (e) => {
   if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedId && document.activeElement.tagName !== 'INPUT') {
     removeLayer(state.selectedId);
   }
 });
 
-// Поддержка перетаскивания картинок в окно
 els.canvasHost.addEventListener('dragover', (e) => e.preventDefault());
 els.canvasHost.addEventListener('drop', (e) => {
   e.preventDefault();
@@ -507,8 +635,21 @@ els.selfVideo.style.transform = 'scaleX(-1)';
 ctx.fillStyle = '#000';
 ctx.fillRect(0, 0, els.canvas.width, els.canvas.height);
 
-navigator.mediaDevices.addEventListener?.('devicechange', listCameras);
-listCameras();
+navigator.mediaDevices.addEventListener?.('devicechange', refreshDevices);
+
+// Запрашиваем доступ один раз при старте, чтобы получить настоящие названия
+// устройств (без разрешения браузер/движок скрывает метки).
+async function bootstrapDevices() {
+  try {
+    const probe = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    probe.getTracks().forEach((t) => t.stop());
+  } catch (e) {
+    // Не страшно: пользователь сможет нажать «Включить камеру» и увидит причину.
+    console.warn('Предварительный доступ к камере не получен:', e);
+  }
+  await refreshDevices();
+}
+bootstrapDevices();
 
 // ============================================================
 //  АВТООБНОВЛЕНИЕ (Tauri updater)
@@ -523,7 +664,6 @@ const updateEls = {
   later: $('updateLater'),
 };
 
-// Доступно только внутри нативного окна Tauri (в браузере — пропускаем).
 function tauri() {
   return typeof window !== 'undefined' ? window.__TAURI__ : undefined;
 }
@@ -578,7 +718,6 @@ async function applyUpdate() {
           break;
       }
     });
-    // Перезапуск приложения после установки
     if (T.process && typeof T.process.relaunch === 'function') {
       await T.process.relaunch();
     }
@@ -593,6 +732,4 @@ async function applyUpdate() {
 updateEls.btn.addEventListener('click', applyUpdate);
 updateEls.later.addEventListener('click', () => updateEls.toast.classList.remove('show'));
 
-// Проверяем обновления через пару секунд после запуска
 setTimeout(checkForUpdates, 2500);
-

@@ -92,6 +92,26 @@ html, body {
 
 .hint { font-size: 12px; color: var(--text-faint); line-height: 1.5; margin-top: 4px; }
 
+/* Сообщение об ошибке */
+.alert {
+  margin-top: 10px; font-size: 12px; line-height: 1.5;
+  color: #ffd7dc; background: rgba(239,71,87,0.12);
+  border: 1px solid rgba(239,71,87,0.4); border-radius: 10px; padding: 9px 11px;
+  animation: rise 0.3s var(--ease) both;
+}
+
+/* Индикатор уровня микрофона */
+.meter {
+  height: 8px; margin: 10px 0; border-radius: 6px;
+  background: var(--panel-2); border: 1px solid var(--line); overflow: hidden;
+}
+.meter span {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, #2ecc71, #b6e84a);
+  border-radius: 6px; transition: width 0.07s linear;
+}
+.meter span.hot { background: linear-gradient(90deg, #b6e84a, var(--danger)); }
+
 .field { display: block; margin-bottom: 12px; }
 .field:last-child { margin-bottom: 0; }
 .field__label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }

@@ -23,7 +23,7 @@
       </div>
 
       <div class="scroll">
-        <!-- Источник -->
+        <!-- Камера -->
         <section class="card">
           <h3 class="card__title">Камера</h3>
           <label class="field">
@@ -46,6 +46,45 @@
             <button id="startBtn" class="btn btn--primary">Включить камеру</button>
             <button id="stopBtn" class="btn btn--ghost" disabled>Стоп</button>
           </div>
+          <div class="alert" id="camError" hidden></div>
+        </section>
+
+        <!-- Микрофон -->
+        <section class="card">
+          <h3 class="card__title">Микрофон</h3>
+          <label class="toggle">
+            <input type="checkbox" id="micEnable" />
+            <span class="toggle__track"><span class="toggle__thumb"></span></span>
+            <span class="toggle__label">Использовать микрофон</span>
+          </label>
+          <p class="hint">Камера включается без звука. Микрофон — отдельно, чтобы случайно не транслировать встроенный микрофон камеры.</p>
+          <label class="field">
+            <span class="field__label">Устройство ввода</span>
+            <div class="select-wrap">
+              <select id="micSelect"></select>
+            </div>
+          </label>
+          <div class="meter" id="micMeter" title="Уровень сигнала микрофона">
+            <span id="micMeterFill"></span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="micMonitor" />
+            <span class="toggle__track"><span class="toggle__thumb"></span></span>
+            <span class="toggle__label">Прослушать (в наушники)</span>
+          </label>
+          <p class="hint" id="micMonitorHint">Слушай через наушники, иначе будет фон/эхо.</p>
+        </section>
+
+        <!-- Звук / вывод -->
+        <section class="card">
+          <h3 class="card__title">Вывод звука</h3>
+          <label class="field">
+            <span class="field__label">Наушники / динамики</span>
+            <div class="select-wrap">
+              <select id="outputSelect"></select>
+            </div>
+          </label>
+          <p class="hint" id="outputHint"></p>
         </section>
 
         <!-- Зеркало -->
@@ -131,6 +170,7 @@
   </div>
 
   <input type="file" id="fileInput" accept="image/*" hidden />
+  <audio id="monitorAudio" autoplay></audio>
 
   <!-- Уведомление об обновлении -->
   <div class="update-toast" id="updateToast">
