@@ -13,11 +13,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Клонировать softcam (MIT)
-        uses: actions/checkout@v4
-        with:
-          repository: tshino/softcam
-          ref: master
-          path: softcam
+        run: git clone --depth 1 https://github.com/tshino/softcam.git softcam
+        shell: pwsh
 
       - name: Подготовить MSBuild
         uses: microsoft/setup-msbuild@v2
