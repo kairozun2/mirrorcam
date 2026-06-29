@@ -44,7 +44,7 @@ const els = {
   fpsMeta: $('fpsMeta'),
 };
 
-const ctx = els.canvas.getContext('2d', { alpha: false });
+const ctx = els.canvas.getContext('2d', { alpha: false, willReadFrequently: true });
 
 // ---------- Состояние ----------
 const state = {
@@ -880,3 +880,102 @@ updateEls.btn.addEventListener('click', applyUpdate);
 updateEls.later.addEventListener('click', () => updateEls.toast.classList.remove('show'));
 
 setTimeout(checkForUpdates, 2500);
+
+// ============================================================
+//  ВИРТУАЛЬНАЯ КАМЕРА (вывод в Discord/браузеры через softcam)
+// ============================================================
+const vcamEls = {
+  toggle: $('vcamToggle'),
+  dot: $('vcamStatus'),
+  text: $('vcamStatusText'),
+};
+const vcam = { active: false, sending: false, last: 0, raf: null, timer: null };
+
+function vcamReady() {
+  const T = tauri();
+  return !!(T && T.core && typeof T.core.invoke === 'function');
+}
+
+function vcamSetStatus(s) {
+  if (s === 'on') {
+    vcamEls.dot.className = 'status status--on';
+    vcamEls.text.textContent = 'Подключено';
+  } else if (s === 'wait') {
+    vcamEls.dot.className = 'status status--off';
+    vcamEls.text.textContent = 'Ожидание приложения…';
+  } else if (s === 'na') {
+    vcamEls.dot.className = 'status status--off';
+    vcamEls.text.textContent = 'Недоступно (запусти приложение MirrorCam)';
+  } else {
+    vcamEls.dot.className = 'status status--off';
+    vcamEls.text.textContent = 'Выключено';
+  }
+}
+
+function vcamDims() {
+  const w = Math.floor(state.sceneW / 4) * 4;
+  const h = Math.floor(state.sceneH / 4) * 4;
+  return { w, h };
+}
+
+function vcamLoop() {
+  if (!vcam.active) return;
+  vcam.raf = requestAnimationFrame(vcamLoop);
+  const now = performance.now();
+  if (now - vcam.last < 33) return;   // ~30 fps
+  if (vcam.sending) return;           // дроп кадра, если предыдущий ещё в полёте
+  const { w, h } = vcamDims();
+  if (w <= 0 || h <= 0) return;
+  let img;
+  try { img = ctx.getImageData(0, 0, w, h); } catch { return; }
+  vcam.sending = true;
+  vcam.last = now;
+  tauri().core.invoke('vcam_send_frame', { width: w, height: h, frame: new Uint8Array(img.data.buffer) })
+    .catch(() => {})
+    .finally(() => { vcam.sending = false; });
+}
+
+async function vcamPoll() {
+  if (!vcam.active || !vcamReady()) return;
+  try {
+    const connected = await tauri().core.invoke('vcam_status');
+    vcamSetStatus(connected ? 'on' : 'wait');
+  } catch {}
+}
+
+async function vcamStart() {
+  if (!vcamReady()) return;
+  const { w, h } = vcamDims();
+  try {
+    await tauri().core.invoke('vcam_start', { width: w, height: h, fps: 0 });
+    vcam.active = true;
+    vcamSetStatus('wait');
+    vcamLoop();
+    vcam.timer = setInterval(vcamPoll, 1000);
+  } catch (e) {
+    console.error('vcam_start:', e);
+    vcamEls.toggle.checked = false;
+    vcamSetStatus('off');
+    alert('Не удалось запустить виртуальную камеру:\n' + e);
+  }
+}
+
+async function vcamStop() {
+  vcam.active = false;
+  if (vcam.raf) cancelAnimationFrame(vcam.raf);
+  if (vcam.timer) clearInterval(vcam.timer);
+  vcam.raf = null;
+  vcam.timer = null;
+  vcamSetStatus('off');
+  if (vcamReady()) { try { await tauri().core.invoke('vcam_stop'); } catch {} }
+}
+
+if (!vcamReady()) {
+  vcamEls.toggle.disabled = true;
+  vcamSetStatus('na');
+} else {
+  vcamEls.toggle.addEventListener('change', () => {
+    if (vcamEls.toggle.checked) vcamStart(); else vcamStop();
+  });
+  window.addEventListener('beforeunload', () => { if (vcam.active) vcamStop(); });
+}

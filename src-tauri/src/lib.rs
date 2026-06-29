@@ -1,5 +1,7 @@
 // MirrorCam — основная точка входа приложения (библиотечная часть).
 
+mod vcam;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -7,6 +9,12 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .invoke_handler(tauri::generate_handler![
+            vcam::vcam_start,
+            vcam::vcam_send_frame,
+            vcam::vcam_stop,
+            vcam::vcam_status
+        ])
         .run(tauri::generate_context!())
         .expect("Ошибка при запуске MirrorCam");
 }

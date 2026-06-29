@@ -4,6 +4,9 @@ node_modules/
 # Сборка Rust / Tauri
 src-tauri/target/
 
+# Артефакты виртуальной камеры (собираются в CI)
+src-tauri/vendor/softcam/
+
 # Логи и временные файлы
 *.log
 npm-debug.log*

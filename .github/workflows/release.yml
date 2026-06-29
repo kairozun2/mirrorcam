@@ -38,6 +38,36 @@ jobs:
       - name: Установить зависимости npm
         run: npm install
 
+      - name: Подготовить MSBuild (для softcam)
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Клонировать softcam (MIT)
+        run: git clone --depth 1 https://github.com/tshino/softcam.git softcam
+        shell: pwsh
+
+      - name: Сборка softcam.dll (x64)
+        working-directory: softcam
+        run: msbuild src\softcam\softcam.vcxproj /p:Configuration=Release /p:Platform=x64 /m
+
+      - name: Сборка softcam.dll (Win32 / x86)
+        working-directory: softcam
+        run: msbuild src\softcam\softcam.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
+
+      - name: Разложить softcam в src-tauri/vendor/softcam
+        shell: pwsh
+        run: |
+          $vendor = "src-tauri/vendor/softcam"
+          New-Item -ItemType Directory -Force "$vendor" | Out-Null
+          $dlls = Get-ChildItem -Path softcam -Recurse -Filter softcam.dll
+          if (-not $dlls) { throw "softcam.dll не найдена" }
+          foreach ($d in $dlls) {
+            if ($d.FullName -match '\\x64\\') { Copy-Item $d.FullName "$vendor/softcam-x64.dll" -Force }
+            elseif ($d.FullName -match '\\Win32\\') { Copy-Item $d.FullName "$vendor/softcam-x86.dll" -Force }
+          }
+          if (-not (Test-Path "$vendor/softcam-x64.dll")) { throw "Нет softcam-x64.dll" }
+          if (-not (Test-Path "$vendor/softcam-x86.dll")) { throw "Нет softcam-x86.dll" }
+          Get-ChildItem "$vendor" | ForEach-Object { $_.Name + " " + $_.Length }
+
       - name: Определить тег релиза
         id: tagname
         shell: pwsh

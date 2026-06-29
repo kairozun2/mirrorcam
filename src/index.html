@@ -49,6 +49,21 @@
           <div class="alert" id="camError" hidden></div>
         </section>
 
+        <!-- Виртуальная камера -->
+        <section class="card">
+          <h3 class="card__title">Виртуальная камера</h3>
+          <label class="toggle">
+            <input type="checkbox" id="vcamToggle" />
+            <span class="toggle__track"><span class="toggle__thumb"></span></span>
+            <span class="toggle__label">Транслировать как камеру</span>
+          </label>
+          <div class="vcam-status">
+            <span id="vcamStatus" class="status status--off"></span>
+            <span id="vcamStatusText" class="vcam-status__text">Выключено</span>
+          </div>
+          <p class="hint">Включи, затем выбери камеру <b>«DirectShow Softcam»</b> в Discord, OBS, Zoom или на сайте.</p>
+        </section>
+
         <!-- Микрофон -->
         <section class="card">
           <h3 class="card__title">Микрофон</h3>
