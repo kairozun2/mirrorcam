@@ -887,7 +887,7 @@ setTimeout(checkForUpdates, 2500);
 // ============================================================
 //  РАЗДЕЛ «ОБНОВЛЕНИЯ» — история версий с GitHub
 // ============================================================
-const APP_VERSION = '0.2.7';
+const APP_VERSION = '0.2.8';
 const RELEASES_API = 'https://api.github.com/repos/kairozun2/mirrorcam/releases?per_page=15';
 
 function fmtDate(iso) {
@@ -1003,6 +1003,44 @@ function vcamEnsureCanvas(w, h) {
   }
 }
 
+// Независимая отрисовка сцены для виртуальной камеры на маленьком CPU-холсте.
+// НЕ читает основной (GPU) холст превью — поэтому превью не тормозит.
+function vcamRender(vw, vh) {
+  const sx = vw / state.sceneW, sy = vh / state.sceneH;
+  vcamCtx.setTransform(1, 0, 0, 1, 0, 0);
+  vcamCtx.fillStyle = '#000';
+  vcamCtx.fillRect(0, 0, vw, vh);
+
+  const v = state.video;
+  if (v.readyState >= 2 && v.videoWidth > 0) {
+    const fit = computeFit(v.videoWidth, v.videoHeight, els.fitSelect.value);
+    vcamCtx.save();
+    vcamCtx.scale(sx, sy);
+    vcamCtx.filter = buildFilter();
+    if (els.mirrorOut.checked) {
+      vcamCtx.translate(state.sceneW, 0);
+      vcamCtx.scale(-1, 1);
+    }
+    vcamCtx.drawImage(v, fit.dx, fit.dy, fit.dw, fit.dh);
+    vcamCtx.restore();
+  }
+
+  // Слои (картинки/гифты) — без фильтра, со scene-координатами
+  vcamCtx.save();
+  vcamCtx.scale(sx, sy);
+  for (const layer of state.layers) {
+    if (layer.type === 'image' && layer.img && layer.img.complete) {
+      vcamCtx.drawImage(layer.img, layer.x, layer.y, layer.w, layer.h);
+    } else if (layer.type === 'emoji') {
+      vcamCtx.textAlign = 'center';
+      vcamCtx.textBaseline = 'middle';
+      vcamCtx.font = `${Math.floor(layer.h * 0.82)}px "Segoe UI Emoji", sans-serif`;
+      vcamCtx.fillText(layer.text, layer.x + layer.w / 2, layer.y + layer.h / 2);
+    }
+  }
+  vcamCtx.restore();
+}
+
 function vcamLoop() {
   if (!vcam.active) return;
   vcam.raf = requestAnimationFrame(vcamLoop);
@@ -1017,9 +1055,8 @@ function vcamLoop() {
   vcamEnsureCanvas(w, h);
   let img;
   try {
-    // Масштабируем основной холст в уменьшенный (на видеокарте — быстро),
-    // и читаем пиксели уже с маленького холста.
-    vcamCtx.drawImage(els.canvas, 0, 0, w, h);
+    // Рисуем кадр для камеры независимо (не читаем основной холст превью).
+    vcamRender(w, h);
     img = vcamCtx.getImageData(0, 0, w, h);
   } catch { return; }
   vcam.sending = true;
