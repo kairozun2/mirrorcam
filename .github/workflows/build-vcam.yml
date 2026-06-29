@@ -1,0 +1,45 @@
+name: Этап 0 — сборка фильтра виртуальной камеры (softcam)
+
+# Изолированный шаг: проверяем, что DLL виртуальной камеры (softcam, MIT)
+# собирается в облаке для x64 и x86. Не трогает релиз основного приложения.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-softcam:
+    runs-on: windows-latest
+    steps:
+      - name: Клонировать softcam (MIT)
+        uses: actions/checkout@v4
+        with:
+          repository: tshino/softcam
+          ref: master
+          path: softcam
+
+      - name: Подготовить MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Сборка softcam.dll (x64)
+        working-directory: softcam
+        run: msbuild softcam.sln /p:Configuration=Release /p:Platform=x64 /m
+
+      - name: Сборка softcam.dll (Win32 / x86)
+        working-directory: softcam
+        run: msbuild softcam.sln /p:Configuration=Release /p:Platform=Win32 /m
+
+      - name: Показать собранные файлы
+        working-directory: softcam
+        run: Get-ChildItem -Recurse dist | Select-Object FullName
+        shell: pwsh
+
+      - name: Выгрузить DLL как артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: softcam-dll
+          path: |
+            softcam/dist/bin/x64/softcam.dll
+            softcam/dist/bin/Win32/softcam.dll
+          if-no-files-found: error
