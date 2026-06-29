@@ -1,6 +1,6 @@
 {
   "name": "mirrorcam",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "MirrorCam — студия виртуальной камеры для чат-рулеток",
   "type": "module",

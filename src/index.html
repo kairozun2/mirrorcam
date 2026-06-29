@@ -133,6 +133,48 @@
           <p class="hint" id="layerHint">Слоёв пока нет. Добавь картинку или гифт — их можно двигать и масштабировать прямо на превью.</p>
         </section>
 
+        <!-- Цвета и фильтры -->
+        <section class="card">
+          <h3 class="card__title">Цвета и фильтры</h3>
+          <div class="presets" id="presets">
+            <button class="preset" data-preset="normal">Норма</button>
+            <button class="preset" data-preset="warm">Тёплый</button>
+            <button class="preset" data-preset="cool">Холодный</button>
+            <button class="preset" data-preset="bw">Ч/Б</button>
+            <button class="preset" data-preset="vivid">Сочный</button>
+            <button class="preset" data-preset="vintage">Винтаж</button>
+          </div>
+          <label class="field">
+            <span class="field__label">Яркость · <span id="fxBrightnessVal">100%</span></span>
+            <input type="range" id="fxBrightness" class="range" min="0" max="200" step="1" value="100" />
+          </label>
+          <label class="field">
+            <span class="field__label">Контраст · <span id="fxContrastVal">100%</span></span>
+            <input type="range" id="fxContrast" class="range" min="0" max="200" step="1" value="100" />
+          </label>
+          <label class="field">
+            <span class="field__label">Насыщенность · <span id="fxSaturateVal">100%</span></span>
+            <input type="range" id="fxSaturate" class="range" min="0" max="300" step="1" value="100" />
+          </label>
+          <label class="field">
+            <span class="field__label">Оттенок · <span id="fxHueVal">0°</span></span>
+            <input type="range" id="fxHue" class="range" min="0" max="360" step="1" value="0" />
+          </label>
+          <label class="field">
+            <span class="field__label">Чёрно-белое · <span id="fxGrayVal">0%</span></span>
+            <input type="range" id="fxGray" class="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label class="field">
+            <span class="field__label">Сепия · <span id="fxSepiaVal">0%</span></span>
+            <input type="range" id="fxSepia" class="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label class="field">
+            <span class="field__label">Размытие · <span id="fxBlurVal">0 px</span></span>
+            <input type="range" id="fxBlur" class="range" min="0" max="12" step="0.5" value="0" />
+          </label>
+          <button id="fxReset" class="btn btn--ghost" style="width:100%">Сбросить цвета</button>
+        </section>
+
         <!-- Фон -->
         <section class="card">
           <h3 class="card__title">Вид сцены</h3>

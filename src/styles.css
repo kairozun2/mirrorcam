@@ -306,3 +306,14 @@ select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px
 }
 .range::-webkit-slider-thumb:hover { transform: scale(1.15); }
 .range:active::-webkit-slider-thumb { transform: scale(0.95); }
+
+/* ---------- Пресеты фильтров ---------- */
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.preset {
+  flex: 1 1 28%; padding: 7px 8px; font-size: 12px; font-weight: 600;
+  color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 9px; cursor: pointer;
+  transition: transform 0.12s var(--ease), background 0.2s, border-color 0.2s;
+}
+.preset:hover { transform: translateY(-1px); background: var(--accent-soft); border-color: var(--accent); color: #c7bdff; }
+.preset:active { transform: translateY(0) scale(0.97); }

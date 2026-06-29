@@ -349,6 +349,7 @@ function drawScene() {
   if (v.readyState >= 2 && v.videoWidth > 0) {
     const fit = computeFit(v.videoWidth, v.videoHeight, els.fitSelect.value);
     ctx.save();
+    ctx.filter = buildFilter();
     if (els.mirrorOut.checked) {
       ctx.translate(cw, 0);
       ctx.scale(-1, 1);
@@ -673,6 +674,129 @@ async function bootstrapDevices() {
   await refreshDevices();
 }
 bootstrapDevices();
+
+// ============================================================
+//  ЦВЕТА И ФИЛЬТРЫ
+// ============================================================
+const fx = {
+  brightness: $('fxBrightness'), contrast: $('fxContrast'), saturate: $('fxSaturate'),
+  hue: $('fxHue'), gray: $('fxGray'), sepia: $('fxSepia'), blur: $('fxBlur'),
+  bVal: $('fxBrightnessVal'), cVal: $('fxContrastVal'), sVal: $('fxSaturateVal'),
+  hVal: $('fxHueVal'), gVal: $('fxGrayVal'), seVal: $('fxSepiaVal'), blVal: $('fxBlurVal'),
+  reset: $('fxReset'), presets: $('presets'),
+};
+
+const FX_DEFAULTS = { brightness: 100, contrast: 100, saturate: 100, hue: 0, gray: 0, sepia: 0, blur: 0 };
+const FX_PRESETS = {
+  normal:  { brightness: 100, contrast: 100, saturate: 100, hue: 0, gray: 0, sepia: 0, blur: 0 },
+  warm:    { brightness: 105, contrast: 105, saturate: 120, hue: 350, gray: 0, sepia: 18, blur: 0 },
+  cool:    { brightness: 100, contrast: 105, saturate: 110, hue: 190, gray: 0, sepia: 0, blur: 0 },
+  bw:      { brightness: 105, contrast: 115, saturate: 0, hue: 0, gray: 100, sepia: 0, blur: 0 },
+  vivid:   { brightness: 105, contrast: 115, saturate: 170, hue: 0, gray: 0, sepia: 0, blur: 0 },
+  vintage: { brightness: 105, contrast: 95, saturate: 85, hue: 10, gray: 0, sepia: 45, blur: 0 },
+};
+
+function buildFilter() {
+  return [
+    `brightness(${fx.brightness.value}%)`,
+    `contrast(${fx.contrast.value}%)`,
+    `saturate(${fx.saturate.value}%)`,
+    `hue-rotate(${fx.hue.value}deg)`,
+    `grayscale(${fx.gray.value}%)`,
+    `sepia(${fx.sepia.value}%)`,
+    `blur(${fx.blur.value}px)`,
+  ].join(' ');
+}
+
+function updateFxLabels() {
+  fx.bVal.textContent = fx.brightness.value + '%';
+  fx.cVal.textContent = fx.contrast.value + '%';
+  fx.sVal.textContent = fx.saturate.value + '%';
+  fx.hVal.textContent = fx.hue.value + '°';
+  fx.gVal.textContent = fx.gray.value + '%';
+  fx.seVal.textContent = fx.sepia.value + '%';
+  fx.blVal.textContent = fx.blur.value + ' px';
+}
+
+function applyFx() {
+  updateFxLabels();
+  // Предпросмотр «как вижу я» — тот же фильтр через CSS
+  els.selfVideo.style.filter = buildFilter();
+  saveSettings();
+}
+
+function setFxValues(obj) {
+  for (const k of Object.keys(FX_DEFAULTS)) {
+    if (obj[k] != null) fx[k].value = obj[k];
+  }
+  applyFx();
+}
+
+['brightness', 'contrast', 'saturate', 'hue', 'gray', 'sepia', 'blur'].forEach((k) => {
+  fx[k].addEventListener('input', applyFx);
+});
+fx.reset.addEventListener('click', () => setFxValues(FX_DEFAULTS));
+fx.presets.addEventListener('click', (e) => {
+  const btn = e.target.closest('.preset');
+  if (!btn) return;
+  setFxValues(FX_PRESETS[btn.dataset.preset] || FX_DEFAULTS);
+});
+
+// ============================================================
+//  НАСТРОЙКИ ПОЛЬЗОВАТЕЛЯ (localStorage)
+// ============================================================
+const SETTINGS_KEY = 'mirrorcam.settings.v1';
+
+function collectSettings() {
+  return {
+    res: els.resSelect.value,
+    fit: els.fitSelect.value,
+    mirrorOut: els.mirrorOut.checked,
+    mirrorSelf: els.mirrorSelf.checked,
+    micGain: els.micGain.value,
+    noiseSupp: els.noiseSupp.checked,
+    echoCancel: els.echoCancel.checked,
+    autoGain: els.autoGain.checked,
+    fx: {
+      brightness: fx.brightness.value, contrast: fx.contrast.value, saturate: fx.saturate.value,
+      hue: fx.hue.value, gray: fx.gray.value, sepia: fx.sepia.value, blur: fx.blur.value,
+    },
+  };
+}
+
+let saveTimer = null;
+function saveSettings() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(collectSettings())); } catch {}
+  }, 250);
+}
+
+function loadSettings() {
+  let s;
+  try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); } catch { s = null; }
+  if (!s) { updateFxLabels(); return; }
+  if (s.res) els.resSelect.value = s.res;
+  if (s.fit) els.fitSelect.value = s.fit;
+  if (typeof s.mirrorOut === 'boolean') els.mirrorOut.checked = s.mirrorOut;
+  if (typeof s.mirrorSelf === 'boolean') {
+    els.mirrorSelf.checked = s.mirrorSelf;
+    els.selfVideo.style.transform = s.mirrorSelf ? 'scaleX(-1)' : 'none';
+  }
+  if (s.micGain != null) { els.micGain.value = s.micGain; els.micGainVal.textContent = s.micGain + '%'; }
+  if (typeof s.noiseSupp === 'boolean') els.noiseSupp.checked = s.noiseSupp;
+  if (typeof s.echoCancel === 'boolean') els.echoCancel.checked = s.echoCancel;
+  if (typeof s.autoGain === 'boolean') els.autoGain.checked = s.autoGain;
+  if (s.fx) setFxValues(s.fx); else updateFxLabels();
+}
+
+// Сохраняем при изменении основных переключателей
+[els.resSelect, els.fitSelect, els.mirrorOut, els.mirrorSelf, els.noiseSupp, els.echoCancel, els.autoGain]
+  .forEach((el) => el.addEventListener('change', saveSettings));
+els.micGain.addEventListener('input', saveSettings);
+
+loadSettings();
+
 
 // ============================================================
 //  АВТООБНОВЛЕНИЕ (Tauri updater)
