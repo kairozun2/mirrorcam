@@ -290,3 +290,19 @@ select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px
   .update-toast__actions { width: 100%; }
   .update-toast__actions .btn { flex: 1; }
 }
+
+/* ---------- Ползунок (громкость микрофона) ---------- */
+.range {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 6px; border-radius: 6px; margin: 6px 0 2px;
+  background: var(--panel-2); border: 1px solid var(--line); cursor: pointer; outline: none;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border: 2px solid #fff; box-shadow: 0 2px 8px rgba(124,108,245,0.5);
+  transition: transform 0.12s var(--ease);
+}
+.range::-webkit-slider-thumb:hover { transform: scale(1.15); }
+.range:active::-webkit-slider-thumb { transform: scale(0.95); }

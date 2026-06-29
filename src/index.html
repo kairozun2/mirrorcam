@@ -67,6 +67,25 @@
           <div class="meter" id="micMeter" title="Уровень сигнала микрофона">
             <span id="micMeterFill"></span>
           </div>
+          <label class="field">
+            <span class="field__label">Громкость микрофона · <span id="micGainVal">100%</span></span>
+            <input type="range" id="micGain" class="range" min="0" max="300" step="5" value="100" />
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="noiseSupp" checked />
+            <span class="toggle__track"><span class="toggle__thumb"></span></span>
+            <span class="toggle__label">Шумоподавление</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="echoCancel" checked />
+            <span class="toggle__track"><span class="toggle__thumb"></span></span>
+            <span class="toggle__label">Эхоподавление</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="autoGain" />
+            <span class="toggle__track"><span class="toggle__thumb"></span></span>
+            <span class="toggle__label">Авторегулировка громкости</span>
+          </label>
           <label class="toggle">
             <input type="checkbox" id="micMonitor" />
             <span class="toggle__track"><span class="toggle__thumb"></span></span>

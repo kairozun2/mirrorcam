@@ -17,6 +17,11 @@ const els = {
   micSelect: $('micSelect'),
   micMeter: $('micMeter'),
   micMeterFill: $('micMeterFill'),
+  micGain: $('micGain'),
+  micGainVal: $('micGainVal'),
+  noiseSupp: $('noiseSupp'),
+  echoCancel: $('echoCancel'),
+  autoGain: $('autoGain'),
   micMonitor: $('micMonitor'),
   outputSelect: $('outputSelect'),
   outputHint: $('outputHint'),
@@ -54,6 +59,8 @@ const state = {
   // Аудио-анализ для индикатора уровня
   audioCtx: null,
   analyser: null,
+  gainNode: null,
+  destNode: null,
   meterRaf: null,
 };
 state.video.autoplay = true;
@@ -221,18 +228,25 @@ async function startMic() {
       video: false,
       audio: {
         deviceId: deviceId ? { exact: deviceId } : undefined,
-        echoCancellation: true,
-        noiseSuppression: true,
+        echoCancellation: els.echoCancel.checked,
+        noiseSuppression: els.noiseSupp.checked,
+        autoGainControl: els.autoGain.checked,
       },
     });
     state.audioStream = stream;
 
-    // Индикатор уровня
+    // Граф: источник → усиление → (анализатор + вывод для прослушки)
     state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const src = state.audioCtx.createMediaStreamSource(stream);
+    state.gainNode = state.audioCtx.createGain();
+    state.gainNode.gain.value = Number(els.micGain.value) / 100;
     state.analyser = state.audioCtx.createAnalyser();
     state.analyser.fftSize = 512;
-    src.connect(state.analyser);
+    state.destNode = state.audioCtx.createMediaStreamDestination();
+
+    src.connect(state.gainNode);
+    state.gainNode.connect(state.analyser);
+    state.gainNode.connect(state.destNode);
     runMeter();
 
     applyMonitor(); // прослушка, если включена
@@ -250,6 +264,8 @@ async function stopMic() {
   els.monitorAudio.srcObject = null;
   if (state.audioCtx) { try { await state.audioCtx.close(); } catch {} state.audioCtx = null; }
   state.analyser = null;
+  state.gainNode = null;
+  state.destNode = null;
   if (state.audioStream) {
     state.audioStream.getTracks().forEach((t) => t.stop());
     state.audioStream = null;
@@ -275,9 +291,9 @@ function runMeter() {
 }
 
 function applyMonitor() {
-  if (!state.audioStream) return;
+  if (!state.destNode) return;
   if (els.micMonitor.checked) {
-    els.monitorAudio.srcObject = state.audioStream;
+    els.monitorAudio.srcObject = state.destNode.stream;
     els.monitorAudio.play().catch(() => {});
   } else {
     els.monitorAudio.srcObject = null;
@@ -592,6 +608,13 @@ els.micEnable.addEventListener('change', () => {
   if (els.micEnable.checked) startMic(); else stopMic();
 });
 els.micSelect.addEventListener('change', () => { if (els.micEnable.checked) startMic(); });
+els.micGain.addEventListener('input', () => {
+  els.micGainVal.textContent = els.micGain.value + '%';
+  if (state.gainNode) state.gainNode.gain.value = Number(els.micGain.value) / 100;
+});
+els.noiseSupp.addEventListener('change', () => { if (els.micEnable.checked) startMic(); });
+els.echoCancel.addEventListener('change', () => { if (els.micEnable.checked) startMic(); });
+els.autoGain.addEventListener('change', () => { if (els.micEnable.checked) startMic(); });
 els.micMonitor.addEventListener('change', applyMonitor);
 els.outputSelect.addEventListener('change', applyOutput);
 
