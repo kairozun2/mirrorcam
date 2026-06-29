@@ -1,6 +1,6 @@
 {
   "productName": "MirrorCam",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "identifier": "com.mirrorcam.app",
   "build": {
     "frontendDist": "../src"
@@ -40,10 +40,6 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": ["nsis"],
-    "resources": {
-      "vendor/softcam/softcam-x64.dll": "vendor/softcam/softcam-x64.dll",
-      "vendor/softcam/softcam-x86.dll": "vendor/softcam/softcam-x86.dll"
-    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

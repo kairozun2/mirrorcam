@@ -24,6 +24,12 @@ mod imp {
     // CLSID фильтра softcam (из исходников DShowSoftcam.cpp)
     const FILTER_CLSID: &str = "{AEF3B972-5FA5-4647-9571-358EB472BC9E}";
 
+    // DLL камеры зашиты прямо в бинарник — установщик НЕ ставит отдельный файл,
+    // поэтому он никогда не натыкается на занятую softcam.dll. При первом
+    // включении камеры байты распаковываются в рабочую папку.
+    static SOFTCAM_X64: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/vendor/softcam/softcam-x64.dll"));
+    static SOFTCAM_X86: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/vendor/softcam/softcam-x86.dll"));
+
     type CreateFn = unsafe extern "C" fn(i32, i32, f32) -> *mut c_void;
     type DeleteFn = unsafe extern "C" fn(*mut c_void);
     type SendFn = unsafe extern "C" fn(*mut c_void, *const c_void);
@@ -56,43 +62,25 @@ mod imp {
         if v < 4 { 4 } else { v }
     }
 
-    fn exe_dir() -> PathBuf {
-        std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-            .unwrap_or_else(|| PathBuf::from("."))
-    }
-
-    // Папка с DLL внутри установки (её перезаписывает установщик).
-    fn install_vendor_dir() -> PathBuf {
-        exe_dir().join("vendor").join("softcam")
-    }
-
-    // Стабильная рабочая папка ВНЕ каталога установки. Камера регистрируется и
-    // грузится отсюда, поэтому установщик/апдейтер никогда не натыкается на
-    // занятый файл DLL.
     fn data_dir() -> PathBuf {
         let base = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into());
         PathBuf::from(base).join("MirrorCamVCam")
     }
 
-    // Копирует обе DLL из установки в рабочую папку (если их там нет или они
-    // отличаются по размеру). Если файл занят — тихо используем существующий.
+    // Распаковывает зашитые DLL в рабочую папку (если их там нет или размер иной).
+    // Если файл занят — тихо оставляем существующий (содержимое то же).
     fn deploy_dlls() {
-        let src_dir = install_vendor_dir();
         let dst_dir = data_dir();
         let _ = std::fs::create_dir_all(&dst_dir);
-        for name in ["softcam-x64.dll", "softcam-x86.dll"] {
-            let src = src_dir.join(name);
+        for (name, bytes) in [
+            ("softcam-x64.dll", SOFTCAM_X64),
+            ("softcam-x86.dll", SOFTCAM_X86),
+        ] {
             let dst = dst_dir.join(name);
-            if !src.exists() {
-                continue;
-            }
             let need = !dst.exists()
-                || std::fs::metadata(&dst).map(|m| m.len()).ok()
-                    != std::fs::metadata(&src).map(|m| m.len()).ok();
+                || std::fs::metadata(&dst).map(|m| m.len()).ok() != Some(bytes.len() as u64);
             if need {
-                let _ = std::fs::copy(&src, &dst);
+                let _ = std::fs::write(&dst, bytes);
             }
         }
     }
@@ -102,12 +90,7 @@ mod imp {
         if !deployed.exists() {
             deploy_dlls();
         }
-        if deployed.exists() {
-            deployed
-        } else {
-            // запасной путь — прямо из установки
-            install_vendor_dir().join("softcam-x64.dll")
-        }
+        deployed
     }
 
     fn load_backend() -> Result<Backend, String> {

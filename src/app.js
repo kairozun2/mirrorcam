@@ -885,6 +885,65 @@ updateEls.later.addEventListener('click', () => updateEls.toast.classList.remove
 setTimeout(checkForUpdates, 2500);
 
 // ============================================================
+//  РАЗДЕЛ «ОБНОВЛЕНИЯ» — история версий с GitHub
+// ============================================================
+const APP_VERSION = '0.2.6';
+const RELEASES_API = 'https://api.github.com/repos/kairozun2/mirrorcam/releases?per_page=15';
+
+function fmtDate(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  } catch { return ''; }
+}
+
+async function loadChangelog() {
+  const list = $('changelog');
+  if (!list) return;
+  list.innerHTML = '<li class="changelog__loading">Загрузка…</li>';
+  try {
+    const res = await fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const releases = await res.json();
+    list.innerHTML = '';
+    if (!Array.isArray(releases) || releases.length === 0) {
+      list.innerHTML = '<li class="changelog__loading">Релизов пока нет.</li>';
+      return;
+    }
+    releases.forEach((r) => {
+      const ver = (r.tag_name || r.name || '').replace(/^v/, '');
+      const li = document.createElement('li');
+      li.className = 'changelog__item';
+      if (ver === APP_VERSION) li.classList.add('current');
+      const head = document.createElement('div');
+      head.className = 'changelog__head';
+      head.innerHTML = `<span class="changelog__ver">${ver || '—'}${ver === APP_VERSION ? ' · сейчас' : ''}</span><span class="changelog__date">${fmtDate(r.published_at)}</span>`;
+      li.appendChild(head);
+      const body = (r.body || '').trim();
+      if (body) {
+        const note = document.createElement('div');
+        note.className = 'changelog__note';
+        // первая содержательная строка
+        const firstLine = body.split('\n').find((l) => l.trim()) || '';
+        note.textContent = firstLine.replace(/^[#*\-\s]+/, '').slice(0, 160);
+        li.appendChild(note);
+      }
+      list.appendChild(li);
+    });
+  } catch (e) {
+    console.warn('Не удалось загрузить историю обновлений:', e);
+    list.innerHTML = '<li class="changelog__loading">Не удалось загрузить (нет сети?).</li>';
+  }
+}
+
+$('checkUpdBtn')?.addEventListener('click', () => {
+  loadChangelog();
+  checkForUpdates();
+});
+
+loadChangelog();
+
+// ============================================================
 //  ВИРТУАЛЬНАЯ КАМЕРА (вывод в Discord/браузеры через softcam)
 // ============================================================
 const vcamEls = {
