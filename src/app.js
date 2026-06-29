@@ -903,6 +903,9 @@ function vcamSetStatus(s) {
   } else if (s === 'wait') {
     vcamEls.dot.className = 'status status--off';
     vcamEls.text.textContent = 'Ожидание приложения…';
+  } else if (s === 'reg') {
+    vcamEls.dot.className = 'status status--off';
+    vcamEls.text.textContent = 'Установка камеры (подтверди запрос)…';
   } else if (s === 'na') {
     vcamEls.dot.className = 'status status--off';
     vcamEls.text.textContent = 'Недоступно (запусти приложение MirrorCam)';
@@ -945,6 +948,23 @@ async function vcamPoll() {
 
 async function vcamStart() {
   if (!vcamReady()) return;
+  // Сначала убеждаемся, что фильтр камеры зарегистрирован (один раз, с UAC).
+  vcamSetStatus('reg');
+  try {
+    const reg = await tauri().core.invoke('vcam_ensure_registered');
+    if (!reg) {
+      vcamEls.toggle.checked = false;
+      vcamSetStatus('off');
+      alert('Камера не зарегистрирована. Нужно подтвердить запрос прав администратора (UAC).');
+      return;
+    }
+  } catch (e) {
+    console.error('vcam_ensure_registered:', e);
+    vcamEls.toggle.checked = false;
+    vcamSetStatus('off');
+    alert('Не удалось установить виртуальную камеру:\n' + e);
+    return;
+  }
   const { w, h } = vcamDims();
   try {
     await tauri().core.invoke('vcam_start', { width: w, height: h, fps: 0 });

@@ -17,7 +17,12 @@ mod imp {
     use std::os::raw::c_void;
     use std::path::PathBuf;
     use std::sync::Mutex;
+    use std::os::windows::process::CommandExt;
     use libloading::{Library, Symbol};
+
+    const NO_WINDOW: u32 = 0x0800_0000; // CREATE_NO_WINDOW
+    // CLSID фильтра softcam (из исходников DShowSoftcam.cpp)
+    const FILTER_CLSID: &str = "{AEF3B972-5FA5-4647-9571-358EB472BC9E}";
 
     type CreateFn = unsafe extern "C" fn(i32, i32, f32) -> *mut c_void;
     type DeleteFn = unsafe extern "C" fn(*mut c_void);
@@ -176,6 +181,55 @@ mod imp {
             None => false,
         }
     }
+
+    fn exe_dir() -> PathBuf {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+            .unwrap_or_else(|| PathBuf::from("."))
+    }
+
+    // Проверяем, зарегистрирован ли DirectShow-фильтр softcam.
+    pub fn is_registered() -> bool {
+        std::process::Command::new("reg")
+            .args(["query", &format!("HKCR\\CLSID\\{}", FILTER_CLSID)])
+            .creation_flags(NO_WINDOW)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+
+    // Регистрация/дерегистрация обеих DLL через regsvr32 с правами админа (UAC).
+    pub fn register(unregister: bool) -> Result<(), String> {
+        let dir = exe_dir();
+        let x64 = dir.join("vendor").join("softcam").join("softcam-x64.dll");
+        let x86 = dir.join("vendor").join("softcam").join("softcam-x86.dll");
+        if !x64.exists() {
+            return Err(format!("Файл камеры не найден: {}", x64.display()));
+        }
+        let flag = if unregister { "/u /s" } else { "/s" };
+        let bat = std::env::temp_dir().join("mirrorcam_vcam.bat");
+        let body = format!(
+            "@echo off\r\n\"%SystemRoot%\\System32\\regsvr32.exe\" {flag} \"{x64}\"\r\n\"%SystemRoot%\\SysWOW64\\regsvr32.exe\" {flag} \"{x86}\"\r\n",
+            flag = flag,
+            x64 = x64.display(),
+            x86 = x86.display()
+        );
+        std::fs::write(&bat, body).map_err(|e| e.to_string())?;
+        let ps = format!(
+            "Start-Process -FilePath \"{}\" -Verb RunAs -WindowStyle Hidden -Wait",
+            bat.display()
+        );
+        let status = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", &ps])
+            .creation_flags(NO_WINDOW)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err("Регистрация отклонена (нужно подтвердить запрос прав администратора).".into());
+        }
+        Ok(())
+    }
 }
 
 #[cfg(not(windows))]
@@ -206,4 +260,32 @@ pub fn vcam_stop() -> Result<(), String> {
 #[tauri::command]
 pub fn vcam_status() -> bool {
     imp::status()
+}
+
+#[tauri::command]
+pub fn vcam_ensure_registered() -> Result<bool, String> {
+    #[cfg(windows)]
+    {
+        if imp::is_registered() {
+            return Ok(true);
+        }
+        imp::register(false)?;
+        Ok(imp::is_registered())
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+pub fn vcam_unregister() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        return imp::register(true);
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(())
+    }
 }

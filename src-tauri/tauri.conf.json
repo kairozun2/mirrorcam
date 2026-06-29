@@ -1,6 +1,6 @@
 {
   "productName": "MirrorCam",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "identifier": "com.mirrorcam.app",
   "build": {
     "frontendDist": "../src"
@@ -54,8 +54,7 @@
       "nsis": {
         "languages": ["Russian", "English"],
         "displayLanguageSelector": false,
-        "installMode": "currentUser",
-        "installerHooks": "./installer-hooks.nsi"
+        "installMode": "currentUser"
       }
     }
   }

@@ -1,21 +1,22 @@
 :root {
-  --bg: #0e0f14;
-  --bg-2: #15161d;
-  --panel: #1a1c25;
-  --panel-2: #20222d;
-  --line: #2a2d3a;
-  --text: #e9eaf0;
-  --text-dim: #9a9db0;
-  --text-faint: #6b6f82;
-  --accent: #7c6cf5;
-  --accent-2: #a855f7;
-  --accent-soft: rgba(124, 108, 245, 0.14);
-  --danger: #ef4757;
-  --ok: #2ecc71;
+  --bg: #0c120f;
+  --bg-2: #111a15;
+  --panel: rgba(23, 33, 27, 0.72);
+  --panel-solid: #17211b;
+  --panel-2: #1e2a23;
+  --line: #2b3a32;
+  --text: #e9f1ea;
+  --text-dim: #9bb1a5;
+  --text-faint: #6d837a;
+  --accent: #5fae7e;
+  --accent-2: #84c98f;
+  --accent-soft: rgba(95, 174, 126, 0.16);
+  --danger: #e8694e;
+  --ok: #4cd292;
   --radius: 14px;
   --radius-sm: 10px;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  --shadow: 0 12px 44px rgba(0, 0, 0, 0.5);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -39,7 +40,10 @@ html, body {
   display: grid;
   grid-template-columns: 320px 1fr;
   height: 100vh;
-  background: radial-gradient(1200px 600px at 80% -10%, rgba(124,108,245,0.10), transparent 60%), var(--bg);
+  background:
+    radial-gradient(1100px 560px at 82% -12%, rgba(95,174,126,0.16), transparent 60%),
+    radial-gradient(900px 520px at -5% 110%, rgba(95,174,126,0.08), transparent 55%),
+    var(--bg);
 }
 
 /* ---------- Боковая панель ---------- */
@@ -74,6 +78,8 @@ html, body {
 
 .card {
   background: var(--panel);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px;

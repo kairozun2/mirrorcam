@@ -13,7 +13,9 @@ pub fn run() {
             vcam::vcam_start,
             vcam::vcam_send_frame,
             vcam::vcam_stop,
-            vcam::vcam_status
+            vcam::vcam_status,
+            vcam::vcam_ensure_registered,
+            vcam::vcam_unregister
         ])
         .run(tauri::generate_context!())
         .expect("Ошибка при запуске MirrorCam");
