@@ -27,16 +27,23 @@ jobs:
         working-directory: softcam
         run: msbuild src\softcam\softcam.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
 
-      - name: Показать собранные файлы
+      - name: Собрать DLL по архитектурам
         working-directory: softcam
-        run: Get-ChildItem -Recurse dist | Select-Object FullName
         shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ../vcam-out | Out-Null
+          $dlls = Get-ChildItem -Recurse -Filter softcam.dll
+          $dlls | ForEach-Object { Write-Host $_.FullName }
+          foreach ($d in $dlls) {
+            if ($d.FullName -match '\\x64\\') { Copy-Item $d.FullName ../vcam-out/softcam-x64.dll -Force }
+            elseif ($d.FullName -match '\\Win32\\') { Copy-Item $d.FullName ../vcam-out/softcam-x86.dll -Force }
+          }
+          Write-Host "=== Итоговые файлы ==="
+          Get-ChildItem ../vcam-out | ForEach-Object { $_.Name + " " + $_.Length }
 
       - name: Выгрузить DLL как артефакт
         uses: actions/upload-artifact@v4
         with:
           name: softcam-dll
-          path: |
-            softcam/dist/bin/x64/softcam.dll
-            softcam/dist/bin/Win32/softcam.dll
+          path: vcam-out/*.dll
           if-no-files-found: error
