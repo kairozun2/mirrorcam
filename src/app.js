@@ -44,7 +44,7 @@ const els = {
   fpsMeta: $('fpsMeta'),
 };
 
-const ctx = els.canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+const ctx = els.canvas.getContext('2d', { alpha: false });
 
 // ---------- Состояние ----------
 const state = {
@@ -919,21 +919,46 @@ function vcamSetStatus(s) {
 }
 
 function vcamDims() {
-  const w = Math.floor(state.sceneW / 4) * 4;
-  const h = Math.floor(state.sceneH / 4) * 4;
+  // Понижаем разрешение вывода ради плавности (превью остаётся в полном HD).
+  const MAX_W = 960;
+  let w = state.sceneW, h = state.sceneH;
+  if (w > MAX_W) { const k = MAX_W / w; w = MAX_W; h = Math.round(h * k); }
+  w = Math.floor(w / 4) * 4;
+  h = Math.floor(h / 4) * 4;
+  if (w < 4) w = 4;
+  if (h < 4) h = 4;
   return { w, h };
+}
+
+// Отдельный уменьшенный холст для захвата кадров в виртуальную камеру.
+let vcamCanvas = null, vcamCtx = null;
+function vcamEnsureCanvas(w, h) {
+  if (!vcamCanvas) {
+    vcamCanvas = document.createElement('canvas');
+    vcamCtx = vcamCanvas.getContext('2d', { alpha: false, willReadFrequently: true });
+  }
+  if (vcamCanvas.width !== w || vcamCanvas.height !== h) {
+    vcamCanvas.width = w;
+    vcamCanvas.height = h;
+  }
 }
 
 function vcamLoop() {
   if (!vcam.active) return;
   vcam.raf = requestAnimationFrame(vcamLoop);
   const now = performance.now();
-  if (now - vcam.last < 33) return;   // ~30 fps
+  if (now - vcam.last < 42) return;   // ~24 fps — достаточно и плавно
   if (vcam.sending) return;           // дроп кадра, если предыдущий ещё в полёте
   const { w, h } = vcamDims();
   if (w <= 0 || h <= 0) return;
+  vcamEnsureCanvas(w, h);
   let img;
-  try { img = ctx.getImageData(0, 0, w, h); } catch { return; }
+  try {
+    // Масштабируем основной холст в уменьшенный (на видеокарте — быстро),
+    // и читаем пиксели уже с маленького холста.
+    vcamCtx.drawImage(els.canvas, 0, 0, w, h);
+    img = vcamCtx.getImageData(0, 0, w, h);
+  } catch { return; }
   vcam.sending = true;
   vcam.last = now;
   tauri().core.invoke('vcam_send_frame', { width: w, height: h, frame: new Uint8Array(img.data.buffer) })
