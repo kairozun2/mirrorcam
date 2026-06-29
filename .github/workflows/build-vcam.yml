@@ -21,11 +21,11 @@ jobs:
 
       - name: Сборка softcam.dll (x64)
         working-directory: softcam
-        run: msbuild softcam.sln /p:Configuration=Release /p:Platform=x64 /m
+        run: msbuild src\softcam\softcam.vcxproj /p:Configuration=Release /p:Platform=x64 /m
 
       - name: Сборка softcam.dll (Win32 / x86)
         working-directory: softcam
-        run: msbuild softcam.sln /p:Configuration=Release /p:Platform=Win32 /m
+        run: msbuild src\softcam\softcam.vcxproj /p:Configuration=Release /p:Platform=Win32 /m
 
       - name: Показать собранные файлы
         working-directory: softcam
