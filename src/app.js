@@ -95,7 +95,10 @@ function fillSelect(select, devices, fallbackName) {
 async function refreshDevices() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    fillSelect(els.cameraSelect, devices.filter((d) => d.kind === 'videoinput'), 'Камера');
+    // Реальные камеры для ВХОДА: исключаем нашу виртуальную камеру softcam,
+    // чтобы её нельзя было случайно выбрать источником (иначе «камера занята»/чёрный экран).
+    const cams = devices.filter((d) => d.kind === 'videoinput' && !/softcam/i.test(d.label || ''));
+    fillSelect(els.cameraSelect, cams, 'Камера');
     fillSelect(els.micSelect, devices.filter((d) => d.kind === 'audioinput'), 'Микрофон');
 
     const outs = devices.filter((d) => d.kind === 'audiooutput');
