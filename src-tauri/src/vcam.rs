@@ -292,7 +292,9 @@ pub fn vcam_start(width: u32, height: u32, fps: f32) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn vcam_send_frame(width: u32, height: u32, frame: Vec<u8>) -> Result<(), String> {
+pub async fn vcam_send_frame(width: u32, height: u32, frame: Vec<u8>) -> Result<(), String> {
+    // async — чтобы тяжёлая обработка кадра шла НЕ в главном потоке и не
+    // тормозила интерфейс/превью.
     imp::send_frame(width, height, &frame)
 }
 
@@ -307,7 +309,7 @@ pub fn vcam_status() -> bool {
 }
 
 #[tauri::command]
-pub fn vcam_ensure_registered() -> Result<bool, String> {
+pub async fn vcam_ensure_registered() -> Result<bool, String> {
     #[cfg(windows)]
     {
         if imp::is_registered() {

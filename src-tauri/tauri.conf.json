@@ -1,6 +1,6 @@
 {
   "productName": "MirrorCam",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "identifier": "com.mirrorcam.app",
   "build": {
     "frontendDist": "../src"

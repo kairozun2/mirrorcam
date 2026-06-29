@@ -1,6 +1,6 @@
 [package]
 name = "mirrorcam"
-version = "0.2.8"
+version = "0.2.9"
 description = "MirrorCam — студия виртуальной камеры для чат-рулеток"
 authors = ["MirrorCam"]
 edition = "2021"

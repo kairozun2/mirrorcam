@@ -887,7 +887,7 @@ setTimeout(checkForUpdates, 2500);
 // ============================================================
 //  РАЗДЕЛ «ОБНОВЛЕНИЯ» — история версий с GitHub
 // ============================================================
-const APP_VERSION = '0.2.8';
+const APP_VERSION = '0.2.9';
 const RELEASES_API = 'https://api.github.com/repos/kairozun2/mirrorcam/releases?per_page=15';
 
 function fmtDate(iso) {
