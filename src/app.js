@@ -919,8 +919,9 @@ function vcamSetStatus(s) {
 }
 
 function vcamDims() {
-  // Понижаем разрешение вывода ради плавности (превью остаётся в полном HD).
-  const MAX_W = 960;
+  // Лёгкий поток ради плавности (превью остаётся в полном HD).
+  // Для чат-рулеток 640px более чем достаточно.
+  const MAX_W = 640;
   let w = state.sceneW, h = state.sceneH;
   if (w > MAX_W) { const k = MAX_W / w; w = MAX_W; h = Math.round(h * k); }
   w = Math.floor(w / 4) * 4;
@@ -947,7 +948,7 @@ function vcamLoop() {
   if (!vcam.active) return;
   vcam.raf = requestAnimationFrame(vcamLoop);
   const now = performance.now();
-  if (now - vcam.last < 42) return;   // ~24 fps — достаточно и плавно
+  if (now - vcam.last < 50) return;   // ~20 fps — плавно и легко для чат-рулеток
   if (vcam.sending) return;           // дроп кадра, если предыдущий ещё в полёте
   const { w, h } = vcamDims();
   if (w <= 0 || h <= 0) return;
