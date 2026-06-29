@@ -56,16 +56,58 @@ mod imp {
         if v < 4 { 4 } else { v }
     }
 
-    fn dll_path() -> PathBuf {
-        // Рядом с exe: vendor/softcam/softcam-x64.dll (как кладёт установщик).
-        let mut dir = std::env::current_exe()
+    fn exe_dir() -> PathBuf {
+        std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-            .unwrap_or_else(|| PathBuf::from("."));
-        dir.push("vendor");
-        dir.push("softcam");
-        dir.push("softcam-x64.dll");
-        dir
+            .unwrap_or_else(|| PathBuf::from("."))
+    }
+
+    // Папка с DLL внутри установки (её перезаписывает установщик).
+    fn install_vendor_dir() -> PathBuf {
+        exe_dir().join("vendor").join("softcam")
+    }
+
+    // Стабильная рабочая папка ВНЕ каталога установки. Камера регистрируется и
+    // грузится отсюда, поэтому установщик/апдейтер никогда не натыкается на
+    // занятый файл DLL.
+    fn data_dir() -> PathBuf {
+        let base = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into());
+        PathBuf::from(base).join("MirrorCamVCam")
+    }
+
+    // Копирует обе DLL из установки в рабочую папку (если их там нет или они
+    // отличаются по размеру). Если файл занят — тихо используем существующий.
+    fn deploy_dlls() {
+        let src_dir = install_vendor_dir();
+        let dst_dir = data_dir();
+        let _ = std::fs::create_dir_all(&dst_dir);
+        for name in ["softcam-x64.dll", "softcam-x86.dll"] {
+            let src = src_dir.join(name);
+            let dst = dst_dir.join(name);
+            if !src.exists() {
+                continue;
+            }
+            let need = !dst.exists()
+                || std::fs::metadata(&dst).map(|m| m.len()).ok()
+                    != std::fs::metadata(&src).map(|m| m.len()).ok();
+            if need {
+                let _ = std::fs::copy(&src, &dst);
+            }
+        }
+    }
+
+    fn dll_path() -> PathBuf {
+        let deployed = data_dir().join("softcam-x64.dll");
+        if !deployed.exists() {
+            deploy_dlls();
+        }
+        if deployed.exists() {
+            deployed
+        } else {
+            // запасной путь — прямо из установки
+            install_vendor_dir().join("softcam-x64.dll")
+        }
     }
 
     fn load_backend() -> Result<Backend, String> {
@@ -182,28 +224,47 @@ mod imp {
         }
     }
 
-    fn exe_dir() -> PathBuf {
-        std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-            .unwrap_or_else(|| PathBuf::from("."))
-    }
-
-    // Проверяем, зарегистрирован ли DirectShow-фильтр softcam.
-    pub fn is_registered() -> bool {
-        std::process::Command::new("reg")
-            .args(["query", &format!("HKCR\\CLSID\\{}", FILTER_CLSID)])
+    // Возвращает путь к DLL, на который сейчас зарегистрирован фильтр (если есть).
+    fn registered_dll_path() -> Option<String> {
+        let out = std::process::Command::new("reg")
+            .args([
+                "query",
+                &format!("HKCR\\CLSID\\{}\\InprocServer32", FILTER_CLSID),
+                "/ve",
+            ])
             .creation_flags(NO_WINDOW)
             .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let s = String::from_utf8_lossy(&out.stdout);
+        for line in s.lines() {
+            if let Some(idx) = line.find("REG_SZ") {
+                return Some(line[idx + 6..].trim().to_string());
+            }
+        }
+        None
+    }
+
+    // Камера считается готовой, только если она зарегистрирована И указывает на
+    // нашу стабильную рабочую папку (иначе нужно перерегистрировать туда).
+    pub fn is_registered() -> bool {
+        match registered_dll_path() {
+            Some(p) => {
+                let want = data_dir().join("softcam-x64.dll");
+                p.eq_ignore_ascii_case(&want.to_string_lossy())
+            }
+            None => false,
+        }
     }
 
     // Регистрация/дерегистрация обеих DLL через regsvr32 с правами админа (UAC).
     pub fn register(unregister: bool) -> Result<(), String> {
-        let dir = exe_dir();
-        let x64 = dir.join("vendor").join("softcam").join("softcam-x64.dll");
-        let x86 = dir.join("vendor").join("softcam").join("softcam-x86.dll");
+        deploy_dlls();
+        let dir = data_dir();
+        let x64 = dir.join("softcam-x64.dll");
+        let x86 = dir.join("softcam-x86.dll");
         if !x64.exists() {
             return Err(format!("Файл камеры не найден: {}", x64.display()));
         }
