@@ -1,6 +1,6 @@
 {
   "productName": "MirrorCam",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "identifier": "com.mirrorcam.app",
   "build": {
     "frontendDist": "../src"
@@ -17,7 +17,7 @@
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "decorations": true,
+        "decorations": false,
         "transparent": false,
         "theme": "Dark"
       }

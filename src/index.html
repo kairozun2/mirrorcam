@@ -7,6 +7,25 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- Кастомная шапка окна (сливается с фоном) -->
+  <div class="titlebar" data-tauri-drag-region>
+    <div class="titlebar__brand" data-tauri-drag-region>MirrorCam</div>
+    <div class="titlebar__controls">
+      <button class="tb-btn" id="tbSettings" title="Настройки" aria-label="Настройки">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="tb-btn" id="tbMin" title="Свернуть" aria-label="Свернуть">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <button class="tb-btn" id="tbMax" title="Развернуть" aria-label="Развернуть">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+      </button>
+      <button class="tb-btn tb-btn--close" id="tbClose" title="Закрыть" aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+
   <div class="app">
     <!-- Боковая панель управления -->
     <aside class="sidebar">
@@ -207,7 +226,7 @@
         <!-- Обновления -->
         <section class="card">
           <h3 class="card__title">Обновления</h3>
-          <p class="hint">Текущая версия: <b id="appVersion">0.2.6</b></p>
+          <p class="hint">Текущая версия: <b id="appVersion">0.2.7</b></p>
           <button id="checkUpdBtn" class="btn btn--ghost" style="width:100%; margin-bottom:10px;">Проверить обновления</button>
           <ul id="changelog" class="changelog"></ul>
         </section>
@@ -270,6 +289,27 @@
     <div class="update-toast__actions">
       <button id="updateBtn" class="btn btn--primary">Обновить</button>
       <button id="updateLater" class="btn btn--ghost">Позже</button>
+    </div>
+  </div>
+
+  <!-- Модальное окно настроек -->
+  <div class="modal-backdrop" id="settingsModal" hidden>
+    <div class="modal">
+      <div class="modal__head">
+        <h3 class="modal__title">Настройки</h3>
+        <button class="tb-btn" id="settingsClose" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal__body">
+        <div class="modal__row">
+          <span>Версия приложения</span>
+          <b id="modalVersion">0.2.7</b>
+        </div>
+        <button id="modalCheckUpd" class="btn btn--ghost" style="width:100%; margin-top:6px;">Проверить обновления</button>
+        <p class="hint" style="margin-top:12px;">MirrorCam — студия камеры с зеркалом, слоями, фильтрами и выводом в виртуальную камеру.</p>
+        <p class="hint">Виртуальная камера в приложениях: <b>DirectShow Softcam</b>.</p>
+      </div>
     </div>
   </div>
 

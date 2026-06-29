@@ -887,7 +887,7 @@ setTimeout(checkForUpdates, 2500);
 // ============================================================
 //  РАЗДЕЛ «ОБНОВЛЕНИЯ» — история версий с GitHub
 // ============================================================
-const APP_VERSION = '0.2.6';
+const APP_VERSION = '0.2.7';
 const RELEASES_API = 'https://api.github.com/repos/kairozun2/mirrorcam/releases?per_page=15';
 
 function fmtDate(iso) {
@@ -951,7 +951,7 @@ const vcamEls = {
   dot: $('vcamStatus'),
   text: $('vcamStatusText'),
 };
-const vcam = { active: false, sending: false, last: 0, raf: null, timer: null };
+const vcam = { active: false, sending: false, last: 0, raf: null, timer: null, connected: false };
 
 function vcamReady() {
   const T = tauri();
@@ -1007,7 +1007,10 @@ function vcamLoop() {
   if (!vcam.active) return;
   vcam.raf = requestAnimationFrame(vcamLoop);
   const now = performance.now();
-  if (now - vcam.last < 50) return;   // ~20 fps — плавно и легко для чат-рулеток
+  // Пока тебя никто не смотрит — шлём редко (лёгкий keepalive), чтобы не
+  // нагружать систему и не лагало превью. Как подключаются — полные 20 fps.
+  const interval = vcam.connected ? 50 : 400;
+  if (now - vcam.last < interval) return;
   if (vcam.sending) return;           // дроп кадра, если предыдущий ещё в полёте
   const { w, h } = vcamDims();
   if (w <= 0 || h <= 0) return;
@@ -1030,6 +1033,7 @@ async function vcamPoll() {
   if (!vcam.active || !vcamReady()) return;
   try {
     const connected = await tauri().core.invoke('vcam_status');
+    vcam.connected = !!connected;
     vcamSetStatus(connected ? 'on' : 'wait');
   } catch {}
 }
@@ -1087,3 +1091,27 @@ if (!vcamReady()) {
   });
   window.addEventListener('beforeunload', () => { if (vcam.active) vcamStop(); });
 }
+
+// ============================================================
+//  КАСТОМНАЯ ШАПКА ОКНА + НАСТРОЙКИ
+// ============================================================
+function appWindow() {
+  const T = tauri();
+  if (T && T.window && typeof T.window.getCurrentWindow === 'function') {
+    return T.window.getCurrentWindow();
+  }
+  return null;
+}
+
+$('tbMin')?.addEventListener('click', () => { const w = appWindow(); if (w) w.minimize(); });
+$('tbMax')?.addEventListener('click', () => { const w = appWindow(); if (w) w.toggleMaximize(); });
+$('tbClose')?.addEventListener('click', () => { const w = appWindow(); if (w) w.close(); });
+
+const settingsModal = $('settingsModal');
+function openSettings() { if (settingsModal) settingsModal.hidden = false; }
+function closeSettings() { if (settingsModal) settingsModal.hidden = true; }
+$('tbSettings')?.addEventListener('click', openSettings);
+$('settingsClose')?.addEventListener('click', closeSettings);
+settingsModal?.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettings(); });
+$('modalCheckUpd')?.addEventListener('click', () => { loadChangelog(); checkForUpdates(); });
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
